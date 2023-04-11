@@ -19,6 +19,7 @@ class LPModelGenerator:
 		self.sink = None
 		self.capacity_cnt = []
 		self.conserv_cnt = []
+		self.objective = ""
 		self.graph = Graph()
 
 	# Graph from instance file
@@ -42,40 +43,65 @@ class LPModelGenerator:
 				self.capacity_cnt.append(constr)
 			
 			# logical solution edge
-			self.graph.add_edge(self.source, self.sink)
+			self.graph.add_edge(self.sink, self.source, float('inf'))
 
 
 	# Model name
 	def modelName(self) -> str:
-		p = self.graph.V / self.graph.E ** 2
+		p = self.graph.E / (self.graph.V ** 2)
 		model_name = "model-{}-{:.1f}.lp".format(self.graph.V, p)
 		return model_name
 
-	def generateModel(self):
-		
-		# Conservation constraints: x_i_j = sum(x_j_k) Vk
+	def genConservConstr(self):
+		# Conservation constraints: sum(inc edges) = sum(out edges)
+		# sum(x_j_i) Vj = sum(x_i_k) Vk
+
 		for i in self.graph.nodes:
-			for t1 in self.graph.out_edges(i):
-				j = t1[0]
-				constr = "x_{}_{} = ".format(i,j)  
+			constr = ""
+			for in_edge in self.graph.get_inc_edges(i):
+				j = in_edge[0]
+				constr += "x_{}_{} + ".format(j,i)
 
-				for t2 in self.graph.out_edges(j):
-					k = t2[0]
-					constr += "x_{}_{} + ".format(j,k)
+			# reformat string
+			constr = constr[:-2]
 
-				constr = constr[:-3]  # remove last "+ "
-				self.conserv_cnt.append(constr)
+			for ou_edge in self.graph.get_out_edges(i):
+				k = ou_edge[0]
+				constr += "- x_{}_{} ".format(i,k)
 
+			# reformat string
+			constr += "= 0"
+
+			# save node i constraints
+			self.conserv_cnt.append(constr)
+		
 		# maximise: x_source_sink
-		maximise = "x_{}_{}".format(self.source, self.sink)
+		self.objective = "x_{}_{}".format(self.sink, self.source)
 
+	def genModelFile(self):
+		with open(self.modelName(), "w") as f:
+			f.write("Maximize\n")
+			f.write("\t obj: " + self.objective + "\n")
+			f.write("Subject To\n")
+			for c in self.capacity_cnt:
+				f.write("\t" + c + "\n")
+			for c in self.conserv_cnt:
+				f.write("\t" + c + "\n")
+			f.write("End")
+
+	def createModel(self):
+		self.parseInstanceFile()
+		self.genConservConstr()
+		self.genModelFile()
+
+
+"""
+----------- Main -----------
+"""
 
 def main():
-	g = LPModelGenerator("instanceTest.txt")
-	g.parseInstanceFile()
-	g.generateModel()
-
-	print(g.conserv_cnt)
+	g = LPModelGenerator("instances/inst-100-0.1.txt")
+	g.createModel()
 
 
 if __name__ == '__main__':
