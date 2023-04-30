@@ -51,7 +51,7 @@ class Graph:
     
     def augmenting_phase(self):
         pass
-    
+
         #j = t.
         
         # Tant que j ̸= s :

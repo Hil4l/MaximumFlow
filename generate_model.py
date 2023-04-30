@@ -36,20 +36,18 @@ class LPModelGenerator:
 
 				i, j, w = int(line[0]), int(line[1]), int(line[2])
 				self.graph.add_edge(i,j,w)
-			
-			# logical solution edge
-			self.graph.add_edge(self.sink, self.source, float('inf'))
-
 
 	# Model name
 	def modelName(self) -> str:
 		p = self.graph.E / (self.graph.V ** 2)
 		model_name = "model-{}-{:.1f}.lp".format(self.graph.V, p)
 		return model_name
-	
+
 	def genCapacityConstr(self) -> None:
-		# Capacity constraints: edge flow <= edge capacity
-		# x_i_j <= capacity
+		"""
+		Capacity constraints: edge flow <= edge capacity
+		x_i_j <= capacity
+		"""
 
 		for i in self.graph.nodes:
 			for ou_edge in self.graph.get_out_edges(i):
@@ -59,10 +57,13 @@ class LPModelGenerator:
 				self.capacity_cnt.append(constr)
 
 	def genConservConstr(self) -> None:
-		# Conservation constraints: sum(inc flows) = sum(out flows) (except source and sink)
-		# sum(x_j_i) = sum(x_i_k) Vi (i != S and i!= T)
+		"""
+		Conservation constraints: sum(inc flows) = sum(out flows) (except source and sink)
+		sum(x_j_i) = sum(x_i_k) Vi / {s,t}
+		<=> sum(x_j_i) - sum(x_i_k) = 0 Vi / {s,t}
+		"""
 
-		for i in self.graph.nodes - {self.sink, self.source}:
+		for i in self.graph.nodes - {self.source, self.sink}:
 			constr = ""
 			for in_edge in self.graph.get_inc_edges(i):
 				j = in_edge[0]
@@ -73,6 +74,7 @@ class LPModelGenerator:
 
 			for ou_edge in self.graph.get_out_edges(i):
 				k = ou_edge[0]
+				w = ou_edge[1]
 				constr += "- x_{}_{} ".format(i,k)
 
 			# reformat string
@@ -80,9 +82,18 @@ class LPModelGenerator:
 
 			# save node i constraints
 			self.conserv_cnt.append(constr)
-		
-		# maximise: x_source_sink
-		self.objective = "x_{}_{}".format(self.sink, self.source)
+
+	def genObjective(self):
+		# Objective function = sum of out flows from source node
+		# sum(x_s_j)
+	
+		constr = ""
+		for ou_edge in self.graph.get_out_edges(self.source):
+			j = ou_edge[0]
+			constr += "x_{}_{} + ".format(self.source, j)
+		constr = constr[:-2]
+
+		self.objective = constr
 
 	def genModelFile(self) -> None:
 		with open(self.modelName(), "w") as f:
@@ -98,10 +109,12 @@ class LPModelGenerator:
 	def createModel(self) -> None:
 		self.parseInstanceFile()
 		print("File parsed")
+
 		self.genCapacityConstr()
-		print("Capacity constraints generated")
 		self.genConservConstr()
-		print("Conservation constraints generated")
+		self.genObjective()
+		print("Constraints generated")
+		
 		self.genModelFile()
 		print("Model file generated")
 
@@ -111,7 +124,7 @@ class LPModelGenerator:
 """
 
 def main():
-	# TODO: command line parametre
+	# TODO: command line parametre !!!!!
 
 	g = LPModelGenerator("instances/instanceTest.txt")
 	g.createModel()
