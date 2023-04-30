@@ -76,7 +76,6 @@ class Graph:
  
             # Add path flow to overall flow
             max_flow +=  path_flow
-            print(path_flow)
     
             # Augmanting phase
             v = self.sink

@@ -18,12 +18,12 @@ class FordFulkersonSolver:
     
     def modelName(self) -> str:
         p = self.graph.E / (self.graph.V ** 2)
-        model_name = "model-{}-{:.1f}.lp".format(self.graph.V, p)
+        model_name = "model-{}-{:.1f}.path".format(self.graph.V, p)
         return model_name
 
     def genSolFile(self) -> None:
         with open(self.modelName(), "w") as f:
-            f.write("Max flow = " + self.sol)
+            f.write("Max flow = " + str(self.sol))
     
     def findSol(self) -> None:
          self.sol = self.graph.FordFulkerson()
@@ -36,8 +36,11 @@ class FordFulkersonSolver:
 """
 
 def main():
-    g = FordFulkersonSolver("instances/instanceTest.txt")
-    print(g.modelName())
+    # TODO: command line parametre !!!!!
+
+    instance_file = "instances/inst-100-0.1.txt"
+    g = FordFulkersonSolver(instance_file)
+    g.findSol()
 
 if __name__ == '__main__':
 	main()
