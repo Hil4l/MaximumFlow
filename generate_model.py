@@ -8,12 +8,11 @@ Exemple: python3 generate_model.py "inst-300-0.3.txt"  --> generates "model-300-
 -------------------------------------------------------------------------------------------- 
 """ 
 
-from docplex.mp.model import Model
-from weighted_digraph import Graph
+from data_strcutures.adj_list_digraph import Graph
 
 class LPModelGenerator:
 
-	def __init__(self, instance_file):
+	def __init__(self, instance_file:str):
 		self.instance_file = instance_file
 		self.source = None
 		self.sink = None
@@ -23,7 +22,7 @@ class LPModelGenerator:
 		self.graph = Graph()
 
 	# Graph from instance file
-	def parseInstanceFile(self):
+	def parseInstanceFile(self) -> None:
 		with open(self.instance_file, 'r') as in_file:
 			V = int(in_file.readline().strip().split()[1])
 			self.source = int(in_file.readline().strip().split()[1])
@@ -37,10 +36,6 @@ class LPModelGenerator:
 
 				i, j, w = int(line[0]), int(line[1]), int(line[2])
 				self.graph.add_edge(i,j,w)
-
-				# Capacity constraints: x_i_j <= weight
-				constr = "x_{}_{} <= {}".format(i, j, w)  
-				self.capacity_cnt.append(constr)
 			
 			# logical solution edge
 			self.graph.add_edge(self.sink, self.source, float('inf'))
@@ -51,12 +46,23 @@ class LPModelGenerator:
 		p = self.graph.E / (self.graph.V ** 2)
 		model_name = "model-{}-{:.1f}.lp".format(self.graph.V, p)
 		return model_name
-
-	def genConservConstr(self):
-		# Conservation constraints: sum(inc edges) = sum(out edges)
-		# sum(x_j_i) Vj = sum(x_i_k) Vk
+	
+	def genCapacityConstr(self) -> None:
+		# Capacity constraints: edge flow <= edge capacity
+		# x_i_j <= capacity
 
 		for i in self.graph.nodes:
+			for ou_edge in self.graph.get_out_edges(i):
+				j = ou_edge[0]
+				w = ou_edge[1]
+				constr = "x_{}_{} <= {}".format(i, j, w)  
+				self.capacity_cnt.append(constr)
+
+	def genConservConstr(self) -> None:
+		# Conservation constraints: sum(inc flows) = sum(out flows) (except source and sink)
+		# sum(x_j_i) = sum(x_i_k) Vi (i != S and i!= T)
+
+		for i in self.graph.nodes - {self.sink, self.source}:
 			constr = ""
 			for in_edge in self.graph.get_inc_edges(i):
 				j = in_edge[0]
@@ -78,7 +84,7 @@ class LPModelGenerator:
 		# maximise: x_source_sink
 		self.objective = "x_{}_{}".format(self.sink, self.source)
 
-	def genModelFile(self):
+	def genModelFile(self) -> None:
 		with open(self.modelName(), "w") as f:
 			f.write("Maximize\n")
 			f.write("\t obj: " + self.objective + "\n")
@@ -89,10 +95,15 @@ class LPModelGenerator:
 				f.write("\t" + c + "\n")
 			f.write("End")
 
-	def createModel(self):
+	def createModel(self) -> None:
 		self.parseInstanceFile()
+		print("File parsed")
+		self.genCapacityConstr()
+		print("Capacity constraints generated")
 		self.genConservConstr()
+		print("Conservation constraints generated")
 		self.genModelFile()
+		print("Model file generated")
 
 
 """
@@ -100,7 +111,9 @@ class LPModelGenerator:
 """
 
 def main():
-	g = LPModelGenerator("instances/inst-100-0.1.txt")
+	# TODO: command line parametre
+
+	g = LPModelGenerator("instances/instanceTest.txt")
 	g.createModel()
 
 
