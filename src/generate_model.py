@@ -8,7 +8,39 @@ Exemple: python3 generate_model.py "inst-300-0.3.txt"  --> generates "model-300-
 -------------------------------------------------------------------------------------------- 
 """ 
 
-from data_strcutures.adj_list_digraph import Graph
+class Graph:
+    def __init__(self):
+        self.E = 0  # number of edges
+        self.V = 0  # number of vertices
+        self.nodes = set()
+        self.out_edges = {}
+        self.inc_edges = {}
+
+    def add_vertice(self, u):
+        if u not in self.nodes:
+            self.nodes.add(u)
+            self.out_edges[u] = []
+            self.inc_edges[u] = []
+            self.V += 1
+
+    def add_edge(self, u: int, v: int, w: int) -> None:
+        self.add_vertice(u)
+        self.add_vertice(v)
+        
+        # ignore self loop (because cancel itself in constraints)
+        if u != v:
+            self.out_edges[u].append((v, w))
+            self.inc_edges[v].append((u, w))
+        
+        self.E += 1
+    
+    def get_out_edges(self, u: int) -> list[int]:
+        return self.out_edges[u]
+    
+    def get_inc_edges(self, u: int):
+        return self.inc_edges[u]
+
+# ----------------------------------------------------------------
 
 class LPModelGenerator:
 
@@ -57,43 +89,33 @@ class LPModelGenerator:
 				self.capacity_cnt.append(constr)
 
 	def genConservConstr(self) -> None:
-		"""
-		Conservation constraints: sum(inc flows) = sum(out flows) (except source and sink)
-		sum(x_j_i) = sum(x_i_k) Vi / {s,t}
-		<=> sum(x_j_i) - sum(x_i_k) = 0 Vi / {s,t}
-		"""
-
-		for i in self.graph.nodes - {self.source, self.sink}:
+		
+		for i in self.graph.nodes:
 			constr = ""
-			for in_edge in self.graph.get_inc_edges(i):
-				j = in_edge[0]
-				constr += "x_{}_{} + ".format(j,i)
+			for ou_edge in self.graph.get_out_edges(i):
+				j = ou_edge[0]
+				constr += "x_{}_{} + ".format(i,j)
 
 			# reformat string
 			constr = constr[:-2]
 
-			for ou_edge in self.graph.get_out_edges(i):
-				k = ou_edge[0]
-				w = ou_edge[1]
-				constr += "- x_{}_{} ".format(i,k)
+			for in_edge in self.graph.get_inc_edges(i):
+				j = in_edge[0]
+				constr += "- x_{}_{} ".format(j,i)
 
 			# reformat string
-			constr += "= 0"
+			if i == self.source:
+				constr += "- v_0 = 0"
+			elif i == self.sink:
+				constr += "+ v_0 = 0"
+			else:
+				constr += "= 0"
 
 			# save node i constraints
 			self.conserv_cnt.append(constr)
 
 	def genObjective(self):
-		# Objective function = sum of out flows from source node
-		# sum(x_s_j)
-	
-		constr = ""
-		for ou_edge in self.graph.get_out_edges(self.source):
-			j = ou_edge[0]
-			constr += "x_{}_{} + ".format(self.source, j)
-		constr = constr[:-2]
-
-		self.objective = constr
+		self.objective = "v_0"
 
 	def genModelFile(self) -> None:
 		with open(self.modelName(), "w") as f:
