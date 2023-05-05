@@ -10,8 +10,6 @@ Exemple: python3 generate_model.py "inst-300-0.3.txt"  --> generates "model-300-
 
 class Graph:
     def __init__(self):
-        self.E = 0  # number of edges
-        self.V = 0  # number of vertices
         self.nodes = set()
         self.out_edges = {}
         self.inc_edges = {}
@@ -21,7 +19,6 @@ class Graph:
             self.nodes.add(u)
             self.out_edges[u] = []
             self.inc_edges[u] = []
-            self.V += 1
 
     def add_edge(self, u: int, v: int, w: int) -> None:
         self.add_vertice(u)
@@ -31,8 +28,6 @@ class Graph:
         if u != v:
             self.out_edges[u].append((v, w))
             self.inc_edges[v].append((u, w))
-        
-        self.E += 1
     
     def get_out_edges(self, u: int) -> list[int]:
         return self.out_edges[u]
@@ -50,7 +45,7 @@ class LPModelGenerator:
 		self.sink = None
 		self.capacity_cnt = []
 		self.conserv_cnt = []
-		self.objective = ""
+		self.objective = "v_0"
 		self.graph = Graph()
 
 	# Graph from instance file
@@ -114,9 +109,6 @@ class LPModelGenerator:
 			# save node i constraints
 			self.conserv_cnt.append(constr)
 
-	def genObjective(self):
-		self.objective = "v_0"
-
 	def genModelFile(self) -> None:
 		with open(self.modelName(), "w") as f:
 			f.write("Maximize\n")
@@ -134,7 +126,6 @@ class LPModelGenerator:
 
 		self.genCapacityConstr()
 		self.genConservConstr()
-		self.genObjective()
 		print("Constraints generated")
 		
 		self.genModelFile()
