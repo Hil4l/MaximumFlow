@@ -1,13 +1,17 @@
-# Maximum Flow (linear problem) Project
+# INFO-F-310: Maximum Flow Project
 
-Dependencies: glpk
+Dependencies:
+===========
+- glpk
 
-script: Lp model generator
-  run: python3 generate_model.py "inst-n-p.txt"
+Run:
+===
+- Lp model generator
+  	python3 generate_model.py "inst-n-p.txt"
   generates: model-n-p.lp
-  solve: glpsol --lp model.lp -o model.sol
+  - glpk solve: 
+  		glpsol --lp "model-n-p.lp" -o "model-n-p.sol"
 
-
-script: Ford Fulkerson solver
-  run: python3 chemin_augmentant.py "inst-n-p.txt"
+- Ford Fulkerson solver
+  	python3 chemin_augmentant.py "inst-n-p.txt"
   generates: model-n-p.path
