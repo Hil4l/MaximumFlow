@@ -18,13 +18,19 @@ class FordFulkersonSolver:
             sink = int(f.readline().strip().split()[1])
             E = int(f.readline().strip().split()[1])
 
-            for i in range(V):
+            for _ in range(V):
                 self.matrix.append([None] * V)
                 self.marks.append(None)
             
-            for i in range(E):
-                x, y, z = map(int, f.readline().strip().split())
-                self.matrix[x][y] = [0, z]  # (flow = 0, capacity = z)
+            while True:
+                line = f.readline().strip().split()
+                if not line: break
+                i, j, w = int(line[0]), int(line[1]), int(line[2])
+
+                if self.matrix[i][j] != None: # duplicate edge -> ignore
+                    continue
+                
+                self.matrix[i][j] = [0, w]  # (flow = 0, capacity = w)
 
         self.source = source
         self.sink = sink
@@ -164,7 +170,7 @@ class FordFulkersonSolver:
 def main():
     # TODO: command line parametre !!!!!
 
-    instance_file = "instances/inst-100-0.1.txt"
+    instance_file = "instances/inst-700-0.3.txt"
     g = FordFulkersonSolver(instance_file)
     # g.write_sol()
     

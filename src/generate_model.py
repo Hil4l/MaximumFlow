@@ -9,31 +9,37 @@ Exemple: python3 generate_model.py "inst-300-0.3.txt"  --> generates "model-300-
 """ 
 
 class Graph:
-    def __init__(self):
-        self.nodes = set()
-        self.out_edges = {}
-        self.inc_edges = {}
+	def __init__(self):
+		self.nodes = set()
+		self.out_edges = {}
+		self.inc_edges = {}
 
-    def add_vertice(self, u):
-        if u not in self.nodes:
-            self.nodes.add(u)
-            self.out_edges[u] = []
-            self.inc_edges[u] = []
+	def add_vertice(self, u):
+		if u not in self.nodes:
+			self.nodes.add(u)
+			self.out_edges[u] = []
+			self.inc_edges[u] = []
 
-    def add_edge(self, u: int, v: int, w: int) -> None:
-        self.add_vertice(u)
-        self.add_vertice(v)
-        
-        # ignore self loop (because cancel itself in constraints)
-        if u != v:
-            self.out_edges[u].append((v, w))
-            self.inc_edges[v].append((u, w))
-    
-    def get_out_edges(self, u: int) -> list[int]:
-        return self.out_edges[u]
-    
-    def get_inc_edges(self, u: int):
-        return self.inc_edges[u]
+	def add_edge(self, u: int, v: int, w: int) -> None:
+		self.add_vertice(u)
+		self.add_vertice(v)
+		
+		# ignore self loop (cancel itself in constraints) and duplicate edges
+		if u != v and not self.is_dup_edge(u,v): 
+			self.out_edges[u].append((v, w))
+			self.inc_edges[v].append((u, w))
+	
+	def get_out_edges(self, u: int):
+		return self.out_edges[u]
+	
+	def get_inc_edges(self, u: int):
+		return self.inc_edges[u]
+	
+	def is_dup_edge(self, u: int, v: int) -> bool:
+		# return true if an edge (u,v) already exists
+		return any(x[0] == v for x in self.out_edges[u])
+		
+	
 
 # ----------------------------------------------------------------
 
@@ -41,19 +47,16 @@ class LPModelGenerator:
 
 	def __init__(self, instance_file:str):
 		self.instance_file = instance_file
-		self.source = None
-		self.sink = None
 		self.capacity_cnt = []
 		self.conserv_cnt = []
-		self.objective = "v_0"
 		self.graph = Graph()
 
 	# Graph from instance file
 	def parseInstanceFile(self) -> None:
 		with open(self.instance_file, 'r') as in_file:
 			V = int(in_file.readline().strip().split()[1])
-			self.source = int(in_file.readline().strip().split()[1])
-			self.sink = int(in_file.readline().strip().split()[1])
+			source = int(in_file.readline().strip().split()[1])
+			sink = int(in_file.readline().strip().split()[1])
 			E = int(in_file.readline().strip().split()[1])
 
 			# edges
@@ -63,11 +66,16 @@ class LPModelGenerator:
 
 				i, j, w = int(line[0]), int(line[1]), int(line[2])
 				self.graph.add_edge(i,j,w)
+		
+		self.source = source
+		self.sink = sink
+		self.E = E
+		self.V = V
 
 	# Model name
 	def modelName(self) -> str:
-		p = self.graph.E / (self.graph.V ** 2)
-		model_name = "model-{}-{:.1f}.lp".format(self.graph.V, p)
+		p = self.E / (self.V ** 2)
+		model_name = "model-{}-{:.1f}.lp".format(self.V, p)
 		return model_name
 
 	def genCapacityConstr(self) -> None:
@@ -112,7 +120,7 @@ class LPModelGenerator:
 	def genModelFile(self) -> None:
 		with open(self.modelName(), "w") as f:
 			f.write("Maximize\n")
-			f.write("\t obj: " + self.objective + "\n")
+			f.write("\t obj: v_0\n")
 			f.write("Subject To\n")
 			for c in self.capacity_cnt:
 				f.write("\t" + c + "\n")
@@ -139,7 +147,7 @@ class LPModelGenerator:
 def main():
 	# TODO: command line parametre !!!!!
 
-	instance_file = "instances/inst-100-0.1.txt"
+	instance_file = "instances/inst-700-0.3.txt"
 	g = LPModelGenerator(instance_file)
 	g.createModel()
 
