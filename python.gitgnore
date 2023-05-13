@@ -154,3 +154,8 @@ cython_debug/
 
 # backup
 bckp/
+
+# sol/model files
+*.sol
+*.lp
+*.path
