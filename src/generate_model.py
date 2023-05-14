@@ -8,48 +8,13 @@ Exemple: python3 generate_model.py "inst-300-0.3.txt"  --> generates "model-300-
 -------------------------------------------------------------------------------------------- 
 """ 
 
-class Graph:
-	def __init__(self):
-		self.nodes = set()
-		self.out_edges = {}
-		self.inc_edges = {}
-
-	def add_vertice(self, u):
-		if u not in self.nodes:
-			self.nodes.add(u)
-			self.out_edges[u] = []
-			self.inc_edges[u] = []
-
-	def add_edge(self, u: int, v: int, w: int) -> None:
-		self.add_vertice(u)
-		self.add_vertice(v)
-		
-		# ignore self loop (cancel itself in constraints) and duplicate edges
-		if u != v and not self.is_dup_edge(u,v): 
-			self.out_edges[u].append((v, w))
-			self.inc_edges[v].append((u, w))
-	
-	def get_out_edges(self, u: int):
-		return self.out_edges[u]
-	
-	def get_inc_edges(self, u: int):
-		return self.inc_edges[u]
-	
-	def is_dup_edge(self, u: int, v: int) -> bool:
-		# return true if an edge (u,v) already exists
-		return any(x[0] == v for x in self.out_edges[u])
-		
-	
-
-# ----------------------------------------------------------------
-
 class LPModelGenerator:
 
 	def __init__(self, instance_file:str):
 		self.instance_file = instance_file
+		self.matrix = []  # adj matrix graph
 		self.capacity_cnt = []
 		self.conserv_cnt = []
-		self.graph = Graph()
 
 	# Graph from instance file
 	def parseInstanceFile(self) -> None:
@@ -59,18 +24,44 @@ class LPModelGenerator:
 			sink = int(in_file.readline().strip().split()[1])
 			E = int(in_file.readline().strip().split()[1])
 
+			for _ in range(V):
+				self.matrix.append([None] * V)
+		
 			# edges
 			while True:
 				line = in_file.readline().strip().split()  # ['a', 'b', 'c']
 				if not line: break
-
 				i, j, w = int(line[0]), int(line[1]), int(line[2])
-				self.graph.add_edge(i,j,w)
+
+				if i == j: continue  # ignore self loop (because cancel itself in constraints)
+
+				if self.matrix[i][j] is not None: # dup edge -> sum capacities
+					self.matrix[i][j] += w
+				else:  # new edge
+					self.matrix[i][j] = w  # capacity = w
 		
-		self.source = source
-		self.sink = sink
 		self.E = E
 		self.V = V
+		self.source = source
+		self.sink = sink
+		
+
+	def inc_edges(self, i):
+		# yield inc edges of node i: j, (fij,cij)
+	
+		ls = [row[i] for row in self.matrix]  # i column
+		for j, t in enumerate(ls):
+			if t is not None:  # (i,j) ∈ A
+				yield j, t
+	
+	def out_edges(self, i):
+		# yield out edges of node i: j, (fij,cij)
+		ls = self.matrix[i]
+		for j, t in enumerate(ls):
+			if t is not None:  # (i,j) ∈ A
+				yield j, t
+		
+	# ------------------------------------------------------------------------------------------
 
 	# Model name
 	def modelName(self) -> str:
@@ -84,26 +75,26 @@ class LPModelGenerator:
 		x_i_j <= capacity
 		"""
 
-		for i in self.graph.nodes:
-			for ou_edge in self.graph.get_out_edges(i):
-				j = ou_edge[0]
-				w = ou_edge[1]
+		for i in range(self.V):
+			for j, w in self.out_edges(i):
 				constr = "x_{}_{} <= {}".format(i, j, w)  
 				self.capacity_cnt.append(constr)
 
 	def genConservConstr(self) -> None:
-		
-		for i in self.graph.nodes:
+		"""
+		Conservation constraints: sum(out flows) - sum(inc flows) = v if S, -v if T, 0 else
+		<=> sum(x_j_i) - sum(x_i_k) = 0 {v if S, -v if T, 0 else}
+		"""
+
+		for i in range(self.V):
 			constr = ""
-			for ou_edge in self.graph.get_out_edges(i):
-				j = ou_edge[0]
+			for j, w in self.out_edges(i):  
 				constr += "x_{}_{} + ".format(i,j)
 
 			# reformat string
 			constr = constr[:-2]
 
-			for in_edge in self.graph.get_inc_edges(i):
-				j = in_edge[0]
+			for j, w in self.inc_edges(i):
 				constr += "- x_{}_{} ".format(j,i)
 
 			# reformat string
@@ -133,8 +124,9 @@ class LPModelGenerator:
 		print("File parsed")
 
 		self.genCapacityConstr()
+		print("Capacity constr generated")
 		self.genConservConstr()
-		print("Constraints generated")
+		print("Conservation constr generated")
 		
 		self.genModelFile()
 		print("Model file generated")

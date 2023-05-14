@@ -27,10 +27,10 @@ class FordFulkersonSolver:
                 if not line: break
                 i, j, w = int(line[0]), int(line[1]), int(line[2])
 
-                if self.matrix[i][j] != None: # duplicate edge -> ignore
-                    continue
-                
-                self.matrix[i][j] = [0, w]  # (flow = 0, capacity = w)
+                if self.matrix[i][j] is not None: # duplicate edge -> sum capacities
+                    self.matrix[i][j][1] += w
+                else:  # new edge
+                    self.matrix[i][j] = [0, w]  # (flow = 0, capacity = w)
 
         self.source = source
         self.sink = sink
@@ -38,12 +38,20 @@ class FordFulkersonSolver:
         self.E = E
         
     def inc_edges(self, i):
-        res = [row[i] for row in self.matrix]  # i column
-        return res
+        # yield inc edges of node i: j, (fij,cij)
+
+        ls = [row[i] for row in self.matrix]  # i column
+        for j, t in enumerate(ls):
+            if t is not None:  # (i,j) ∈ A
+                yield j, t
     
     def out_edges(self, i):
-        res = self.matrix[i]
-        return res
+        # yield out edges of node i: j, (fij,cij)
+
+        ls = self.matrix[i]
+        for j, t in enumerate(ls):
+            if t is not None:  # (i,j) ∈ A
+                yield j, t
 
     def marking_phase(self) -> bool:
         """
@@ -65,8 +73,7 @@ class FordFulkersonSolver:
             i = queue.pop(0)  # Sélectionner i dans L et le retirer de L
 
             # Pour tout j non marqué tel que (i, j) ∈ A et fij < uij
-            for j, t in enumerate(self.out_edges(i)):
-                if t is None: continue  # (i,j) ∉ A
+            for j, t in self.out_edges(i):
                 fij, uij = t
 
                 if not visited[j] and fij < uij:
@@ -80,8 +87,7 @@ class FordFulkersonSolver:
 
 
             # Pour tout j non marqué tel que (j, i) ∈ A et fij > 0
-            for j, t in enumerate(self.inc_edges(i)):  # TODO: enumerate(x for x in inc_edges if x not None)
-                if t is None: continue  # (j,i) ∉ A
+            for j, t in self.inc_edges(i):
                 fij, uij = t
 
                 if not visited[j] and fij > 0:
@@ -95,11 +101,11 @@ class FordFulkersonSolver:
 
         # si t est non marque, Stop (plus de chemin augmentant)           
         if not visited[self.sink]:
-            self.min_cut = [i for i, v in enumerate(visited) if v]  # save last iterations marked nodes (min cut)
+            self.min_cut = [i for i, v in enumerate(visited) if v]  # save last iteration marked nodes (min cut)
             return False
         return True
     
-    def augmenting_phase(self):
+    def augmenting_phase(self) -> int:
         """
         update flow along the path
         return: max flow augmenting value (αt)
@@ -136,9 +142,8 @@ class FordFulkersonSolver:
         cut_value = 0
         for i in self.min_cut:
             capacity_sum = 0
-            for j, t in enumerate(self.out_edges(i)):
-                if t is None: continue  # (j,i) ∉ A
-                if j in self.min_cut: continue  # backward edge
+            for j, t in self.out_edges(i):
+                if j in self.min_cut: continue  # not cross edge
 
                 uij = t[1]
                 capacity_sum += uij  # capacity
@@ -156,9 +161,7 @@ class FordFulkersonSolver:
             f.write(f"Max flow = {sol}\n")
 
             for i in range(self.V):
-                for j in range(self.V):
-                    t = self.matrix[i][j]
-                    if t is None: continue
+                for j, t in self.out_edges(i):
 
                     fij, uij = t
                     f.write(f"edge ({i},{j}): {fij}/{uij}\n")
