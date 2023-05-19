@@ -1,184 +1,186 @@
 """
 error: self.matrix[i][j][0] += at (line 91)
-        TypeError: 'tuple' object does not support item assignment
+		TypeError: 'tuple' object does not support item assignment
 
 correction: replace tuple with assignable list : [fij, uij]
 """
+from collections import defaultdict
 
 class FordFulkersonSolver:
 
-    def __init__(self, file_name:str):
-        self.matrix = []  # adj matrix graph
-        self.marks = []  # list of the graph's nodes (parent node, alpha)
-        self.min_cut = []  # list of the minimum cut nodes
+	def __init__(self, file_name:str):
+		self.marks = []  # list of the graph's nodes (parent node, alpha)
+		self.min_cut = []  # list of the minimum cut nodes
+		
+		# graph
+		self.out_edges = defaultdict(list)  # outgoing edges
+		self.inc_edges = defaultdict(list)  # incoming edges
 
-        with open(file_name) as f:
-            V = int(f.readline().strip().split()[1])
-            source = int(f.readline().strip().split()[1])
-            sink = int(f.readline().strip().split()[1])
-            E = int(f.readline().strip().split()[1])
+		with open(file_name) as f:
+			V = int(f.readline().strip().split()[1])
+			source = int(f.readline().strip().split()[1])
+			sink = int(f.readline().strip().split()[1])
+			E = int(f.readline().strip().split()[1])
+			
+			while True:
+				line = f.readline().strip().split()
+				if not line: break
+				i, j, w = int(line[0]), int(line[1]), int(line[2])
+				
+				if not self.dup_edge(i, j, w):  # not dup edge
+					self.out_edges[i].append([j, w, 0])  # (node, capacity, flow)
+					self.inc_edges[j].append([i, w, 0])
 
-            for _ in range(V):
-                self.matrix.append([None] * V)
-                self.marks.append(None)
-            
-            while True:
-                line = f.readline().strip().split()
-                if not line: break
-                i, j, w = int(line[0]), int(line[1]), int(line[2])
+		self.source = source
+		self.sink = sink
+		self.V = V
+		self.E = E
 
-                if self.matrix[i][j] is not None: # duplicate edge -> sum capacities
-                    self.matrix[i][j][1] += w
-                else:  # new edge
-                    self.matrix[i][j] = [0, w]  # (flow = 0, capacity = w)
+	def dup_edge(self, i, j, w):
+		"""
+		returns true and sum capacities if edge (i,j) already exists
+		"""
+		if i not in self.out_edges:
+			return False
+		
+		for t in self.out_edges[i]:
+			if t[0] == j:
+				t[1] += w  # if dup edge -> sum capacities
+				return True
+		return False
 
-        self.source = source
-        self.sink = sink
-        self.V = V
-        self.E = E
-        
-    def inc_edges(self, i):
-        # yield inc edges of node i: j, (fij,cij)
+	def marking_phase(self) -> bool:
+		"""
+		marking phase
+		return: boolean indicating if are no more aumenting paths
+		"""
 
-        ls = [row[i] for row in self.matrix]  # i column
-        for j, t in enumerate(ls):
-            if t is not None:  # (i,j) ∈ A
-                yield j, t
-    
-    def out_edges(self, i):
-        # yield out edges of node i: j, (fij,cij)
+		# Marquer s par [0, ∞]
+		visited = [False]*(self.V)     
+		visited[self.source] = True
 
-        ls = self.matrix[i]
-        for j, t in enumerate(ls):
-            if t is not None:  # (i,j) ∈ A
-                yield j, t
+		self.marks = [None] * self.V
+		self.marks[self.source] = [0, float('inf')]  
+		
+		# L = {s}
+		queue = []
+		queue.append(self.source)
 
-    def marking_phase(self) -> bool:
-        """
-        marking phase
-        return: boolean indicating if are no more aumenting paths
-        """
+		while queue and not visited[self.sink]:  # Tant que L ̸= ∅ et t non marqué :
 
-        # Marquer s par [0, ∞]
-        visited = [False]*(self.V)     
-        visited[self.source] = True  
-        self.marks[self.source] = [0, float('inf')]  
-        
-        # L = {s}
-        queue = []
-        queue.append(self.source)
+			i = queue.pop(0)  # Sélectionner i dans L et le retirer de L
 
-        while queue and not visited[self.sink]:  # Tant que L ̸= ∅ et t non marqué :
+			# Pour tout j non marqué tel que (i, j) ∈ A et fij < uij
+			for j, uij, fij in self.out_edges[i]:
+				if not visited[j] and fij < uij:
 
-            i = queue.pop(0)  # Sélectionner i dans L et le retirer de L
+					# marquer j par [i, αj] avec αj = min(αi, uij − fij) et ajouter j dans L
+					ai = self.marks[i][1]
+					aj = min(ai, uij - fij)
+					self.marks[j] = [i, aj]
+					visited[j] = True
 
-            # Pour tout j non marqué tel que (i, j) ∈ A et fij < uij
-            for j, t in self.out_edges(i):
-                fij, uij = t
+					queue.append(j)
 
-                if not visited[j] and fij < uij:
-                    # marquer j par [i, αj] avec αj = min(αi, uij − fij) et ajouter j dans L
-                    ai = self.marks[i][1]
-                    aj = min(ai, uij - fij)
+			# Pour tout j non marqué tel que (j, i) ∈ A et fij > 0
+			for j, uij, fij in self.inc_edges[i]:
+				if not visited[j] and fij > 0:
 
-                    self.marks[j] = [i, aj]
-                    queue.append(j)
-                    visited[j] = True
+					# marquer j par [i, αj] avec αj = min(αi, fji) et ajouter j dans L.
+					ai = self.marks[i][1]
+					aj = min(ai, fij)
+					self.marks[j] = [i, aj]
+					visited[j] = True
 
+					queue.append(j)
 
-            # Pour tout j non marqué tel que (j, i) ∈ A et fij > 0
-            for j, t in self.inc_edges(i):
-                fij, uij = t
+		# si t est non marque, Stop (plus de chemin augmentant)           
+		if not visited[self.sink]:
+			self.min_cut = [i for i, v in enumerate(visited) if v]  # save last iteration marked nodes (min cut)
+			return False
+		return True
+	
+	def augmenting_phase(self) -> int:
+		"""
+		update flow along the path
+		return: max flow augmenting value (αt)
+		"""
 
-                if not visited[j] and fij > 0:
-                    # marquer j par [i, αj] avec αj = min(αi, fji) et ajouter j dans L.
-                    ai = self.marks[i][1]
-                    aj = min(ai, fij)
+		at = self.marks[self.sink][1]
 
-                    self.marks[j] = [i, aj]
-                    queue.append(j)
-                    visited[j] = True
+		j = self.sink
+		while j != self.source:  # Tant que j ̸= s :
+			i, aj = self.marks[j]  # ▶ Soit [i, αj] la marque de j.
+			
+			# Si (i, j) est en avant
+			for idx, (v, capacity, flow) in enumerate(self.out_edges[i]):
+				if v == j:
+					self.out_edges[i][idx][2] += at  # fij = fij + αt
+					break
+			
+			# Si (i, j) est en arrière
+			for idx, (v, capacity, flow) in enumerate(self.inc_edges[i]):
+				if v == j:
+					self.inc_edges[i][idx][2] -= at  # fji = fji − αt
+					break
 
-        # si t est non marque, Stop (plus de chemin augmentant)           
-        if not visited[self.sink]:
-            self.min_cut = [i for i, v in enumerate(visited) if v]  # save last iteration marked nodes (min cut)
-            return False
-        return True
-    
-    def augmenting_phase(self) -> int:
-        """
-        update flow along the path
-        return: max flow augmenting value (αt)
-        """
+			j = i # ▶ j = i.
+		
+		return at
 
-        at = self.marks[self.sink][1]
+	def ford_fulkerson(self) -> int:
+		F = 0  # initial flow
 
-        j = self.sink
-        while j != self.source:  # Tant que j ̸= s :
-            i, aj = self.marks[j]  # ▶ Soit [i, αj] la marque de j.
-            
-            # Si (i, j) est en avant
-            if self.matrix[i][j] is not None:
-                self.matrix[i][j][0] += at # fij = fij + αt
-            
-            # Si (i, j) est en arrière
-            else:
-                self.matrix[j][i][0] -= at # fji = fji − αt .
+		while self.marking_phase():
+			at = self.augmenting_phase()
+			F += at
 
-            j = i # ▶ j = i.
-        
-        return at
+		return F
+	
+	def min_cut_value(self) -> int:
+		cut_value = 0
+		for i in self.min_cut:
+			capacity_sum = 0
+			for j, t in self.out_edges(i):
+				if j in self.min_cut: continue  # not cross edge
 
-    def ford_fulkerson(self) -> int:
-        F = 0  # initial flowwhile True:
+				uij = t[1]
+				capacity_sum += uij  # capacity
 
-        while self.marking_phase():
-            at = self.augmenting_phase()
-            F += at
+			cut_value += capacity_sum
+		
+		return cut_value
 
-        return F
-    
-    def min_cut_value(self) -> int:
-        cut_value = 0
-        for i in self.min_cut:
-            capacity_sum = 0
-            for j, t in self.out_edges(i):
-                if j in self.min_cut: continue  # not cross edge
+	def write_sol(self):
+		p = self.E / (self.V ** 2)
+		sol_file = "model-{}-{:.1f}.path".format(self.V, p)
+		sol = self.ford_fulkerson()
 
-                uij = t[1]
-                capacity_sum += uij  # capacity
+		with open(sol_file, "w") as f:
+			f.write(f"Max flow = {sol}\n")
 
-            cut_value += capacity_sum
-        
-        return cut_value
+			for i in range(self.V):
+				for j, uij, fij in self.out_edges[i]:
+					f.write(f"edge ({i},{j}): {fij}/{uij}\n")
 
-    def write_sol(self):
-        p = self.E / (self.V ** 2)
-        sol_file = "model-{}-{:.1f}.path".format(self.V, p)
-        sol = self.ford_fulkerson()
-
-        with open(sol_file, "w") as f:
-            f.write(f"Max flow = {sol}\n")
-
-            for i in range(self.V):
-                for j, t in self.out_edges(i):
-
-                    fij, uij = t
-                    f.write(f"edge ({i},{j}): {fij}/{uij}\n")
 
 """
 ----------- Main -----------
 """
 
 def main():
-    # TODO: command line parametre !!!!!
+	# TODO: command line parametre !!!!!
 
-    instance_file = "instances/inst-700-0.3.txt"
-    g = FordFulkersonSolver(instance_file)
-    # g.write_sol()
-    
-    print("(F&F) max flow = " + str(g.ford_fulkerson()))
-    print("(min cut) max flow = " + str(g.min_cut_value()))
+	instance_file = "instances/inst-1500-0.3.txt"
+	g = FordFulkersonSolver(instance_file)
 
+	
+	import time
+	start_time = time.time()	
+	max_flow = g.ford_fulkerson()
+	elapsed_time = time.time() - start_time
+	print(f"max flow = {max_flow} in : {elapsed_time:.4f}")
+	# g.write_sol()
+	
 if __name__ == '__main__':
 	main()

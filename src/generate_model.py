@@ -121,28 +121,44 @@ class LPModelGenerator:
 
 	def createModel(self) -> None:
 		self.parseInstanceFile()
-		print("File parsed")
-
 		self.genCapacityConstr()
-		print("Capacity constr generated")
-		self.genConservConstr()
-		print("Conservation constr generated")
-		
+		self.genConservConstr()		
 		self.genModelFile()
-		print("Model file generated")
-
 
 """
 ----------- Main -----------
 """
 
+def inst_test():
+	import subprocess
+	import os
+
+	n_max = 7
+	for n in range(7,n_max+1):
+		for p in range(1,4):
+			inst = f"instances/inst-{n}00-0.{p}.txt"
+			
+			g = LPModelGenerator(inst)
+			g.createModel()
+			
+			model_file = f"model-{n}00-0.{p}.lp"
+			sol_file = f"sol-{n}00-0.{p}.sol"
+			command = ["glpsol", "--lp", model_file, "-o", sol_file]
+			subprocess.run(command)
+
+			os.remove(model_file)
+			# os.remove(sol_file)
+			print("--------------------------------")
+
+
 def main():
 	# TODO: command line parametre !!!!!
 
-	instance_file = "instances/inst-700-0.3.txt"
-	g = LPModelGenerator(instance_file)
-	g.createModel()
+	# instance_file = "instances/inst-700-0.3.txt"
+	# g = LPModelGenerator(instance_file)
+	# g.createModel()
 
+	inst_test()
 
 if __name__ == '__main__':
 	main()
