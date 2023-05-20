@@ -7,6 +7,7 @@ Generates: CPLEX LP linear program of this instance saved in a file "model-n-p.l
 Exemple: python3 generate_model.py "inst-300-0.3.txt"  --> generates "model-300-0.3.lp"
 -------------------------------------------------------------------------------------------- 
 """ 
+import time
 
 class LPModelGenerator:
 
@@ -121,8 +122,10 @@ class LPModelGenerator:
 
 	def createModel(self) -> None:
 		self.parseInstanceFile()
+
 		self.genCapacityConstr()
-		self.genConservConstr()		
+		self.genConservConstr()
+
 		self.genModelFile()
 
 """
@@ -133,8 +136,8 @@ def inst_test():
 	import subprocess
 	import os
 
-	n_max = 7
-	for n in range(7,n_max+1):
+	n_max = 15
+	for n in range(1,n_max+1,2):
 		for p in range(1,4):
 			inst = f"instances/inst-{n}00-0.{p}.txt"
 			
@@ -142,9 +145,9 @@ def inst_test():
 			g.createModel()
 			
 			model_file = f"model-{n}00-0.{p}.lp"
-			sol_file = f"sol-{n}00-0.{p}.sol"
-			command = ["glpsol", "--lp", model_file, "-o", sol_file]
-			subprocess.run(command)
+			# sol_file = f"sol-{n}00-0.{p}.sol"
+			# command = ["glpsol", "--lp", model_file, "-o", sol_file]
+			# subprocess.run(command)
 
 			os.remove(model_file)
 			# os.remove(sol_file)
@@ -154,11 +157,10 @@ def inst_test():
 def main():
 	# TODO: command line parametre !!!!!
 
-	# instance_file = "instances/inst-700-0.3.txt"
-	# g = LPModelGenerator(instance_file)
-	# g.createModel()
+	instance_file = "instances/inst-100-0.1.txt"
+	g = LPModelGenerator(instance_file)
+	g.createModel()
 
-	inst_test()
 
 if __name__ == '__main__':
 	main()

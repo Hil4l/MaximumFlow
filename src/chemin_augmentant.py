@@ -168,6 +168,22 @@ class FordFulkersonSolver:
 ----------- Main -----------
 """
 
+def inst_test():
+	import time
+	n_max = 13
+	for n in range(5,n_max+1,2):
+		for p in range(1,4):
+			inst = f"instances/inst-{n}00-0.{p}.txt"
+			
+			g = FordFulkersonSolver(inst)
+			
+			start_time = time.time()	
+			max_flow = g.ford_fulkerson()
+			elapsed_time = time.time() - start_time
+			print(f"inst {n}-{p}: F = {max_flow} in : {elapsed_time:.4f}")
+			print("--------------------------------")
+
+
 def main():
 	# TODO: command line parametre !!!!!
 
@@ -180,7 +196,8 @@ def main():
 	max_flow = g.ford_fulkerson()
 	elapsed_time = time.time() - start_time
 	print(f"max flow = {max_flow} in : {elapsed_time:.4f}")
-	# g.write_sol()
+	g.write_sol()
+
 	
 if __name__ == '__main__':
 	main()
