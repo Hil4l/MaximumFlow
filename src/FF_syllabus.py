@@ -142,10 +142,8 @@ class FordFulkersonSolver:
 		cut_value = 0
 		for i in self.min_cut:
 			capacity_sum = 0
-			for j, t in self.out_edges(i):
+			for j, uij in self.out_edges[i]:
 				if j in self.min_cut: continue  # not cross edge
-
-				uij = t[1]
 				capacity_sum += uij  # capacity
 
 			cut_value += capacity_sum
@@ -197,7 +195,7 @@ def main():
 	start_time = time.time()	
 	max_flow = g.ford_fulkerson()
 	elapsed_time = time.time() - start_time
-	print(f"max flow = {max_flow} in : {elapsed_time:.4f}")
+	print(f"max flow = {max_flow} / min cut = {g.min_cut_value()}, in : {elapsed_time:.4f}")
 	# g.write_sol()
 
 	
