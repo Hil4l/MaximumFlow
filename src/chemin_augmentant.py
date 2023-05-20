@@ -1,203 +1,116 @@
-"""
-error: self.matrix[i][j][0] += at (line 91)
-		TypeError: 'tuple' object does not support item assignment
-
-correction: replace tuple with assignable list : [fij, uij]
-"""
-from collections import defaultdict
-
 class FordFulkersonSolver:
 
 	def __init__(self, file_name:str):
+		self.matrix = []  # adj matrix graph
 		self.marks = []  # list of the graph's nodes (parent node, alpha)
 		self.min_cut = []  # list of the minimum cut nodes
-		
-		# graph
-		self.out_edges = defaultdict(list)  # outgoing edges
-		self.inc_edges = defaultdict(list)  # incoming edges
 
 		with open(file_name) as f:
 			V = int(f.readline().strip().split()[1])
 			source = int(f.readline().strip().split()[1])
 			sink = int(f.readline().strip().split()[1])
 			E = int(f.readline().strip().split()[1])
+
+			for _ in range(V):
+				self.matrix.append([0] * V)
+				self.marks.append(None)
 			
 			while True:
 				line = f.readline().strip().split()
 				if not line: break
 				i, j, w = int(line[0]), int(line[1]), int(line[2])
-				
-				if not self.dup_edge(i, j, w):  # not dup edge
-					self.out_edges[i].append([j, w, 0])  # (node, capacity, flow)
-					self.inc_edges[j].append([i, w, 0])
+
+				self.matrix[i][j] += w  # sum capacities of dup edges
 
 		self.source = source
 		self.sink = sink
 		self.V = V
 		self.E = E
-
-	def dup_edge(self, i, j, w):
-		"""
-		returns true and sum capacities if edge (i,j) already exists
-		"""
-		if i not in self.out_edges:
-			return False
-		
-		for t in self.out_edges[i]:
-			if t[0] == j:
-				t[1] += w  # if dup edge -> sum capacities
-				return True
-		return False
-
-	def marking_phase(self) -> bool:
-		"""
-		marking phase
-		return: boolean indicating if are no more aumenting paths
-		"""
-
-		# Marquer s par [0, ∞]
-		visited = [False]*(self.V)     
-		visited[self.source] = True
-
-		self.marks = [None] * self.V
-		self.marks[self.source] = [0, float('inf')]  
-		
-		# L = {s}
-		queue = []
-		queue.append(self.source)
-
-		while queue and not visited[self.sink]:  # Tant que L ̸= ∅ et t non marqué :
-
-			i = queue.pop(0)  # Sélectionner i dans L et le retirer de L
-
-			# Pour tout j non marqué tel que (i, j) ∈ A et fij < uij
-			for j, uij, fij in self.out_edges[i]:
-				if not visited[j] and fij < uij:
-
-					# marquer j par [i, αj] avec αj = min(αi, uij − fij) et ajouter j dans L
-					ai = self.marks[i][1]
-					aj = min(ai, uij - fij)
-					self.marks[j] = [i, aj]
-					visited[j] = True
-
-					queue.append(j)
-
-			# Pour tout j non marqué tel que (j, i) ∈ A et fij > 0
-			for j, uij, fij in self.inc_edges[i]:
-				if not visited[j] and fij > 0:
-
-					# marquer j par [i, αj] avec αj = min(αi, fji) et ajouter j dans L.
-					ai = self.marks[i][1]
-					aj = min(ai, fij)
-					self.marks[j] = [i, aj]
-					visited[j] = True
-
-					queue.append(j)
-
-		# si t est non marque, Stop (plus de chemin augmentant)           
-		if not visited[self.sink]:
-			self.min_cut = [i for i, v in enumerate(visited) if v]  # save last iteration marked nodes (min cut)
-			return False
-		return True
+				
+	def BFS(self, s, t, parent):
 	
-	def augmenting_phase(self) -> int:
-		"""
-		update flow along the path
-		return: max flow augmenting value (αt)
-		"""
-
-		at = self.marks[self.sink][1]
-
-		j = self.sink
-		while j != self.source:  # Tant que j ̸= s :
-			i, aj = self.marks[j]  # ▶ Soit [i, αj] la marque de j.
-			
-			# Si (i, j) est en avant
-			for idx, (v, capacity, flow) in enumerate(self.out_edges[i]):
-				if v == j:
-					self.out_edges[i][idx][2] += at  # fij = fij + αt
-					break
-			
-			# Si (i, j) est en arrière
-			for idx, (v, capacity, flow) in enumerate(self.inc_edges[i]):
-				if v == j:
-					self.inc_edges[i][idx][2] -= at  # fji = fji − αt
-					break
-
-			j = i # ▶ j = i.
-		
-		return at
-
-	def ford_fulkerson(self) -> int:
-		F = 0  # initial flow
-
-		while self.marking_phase():
-			at = self.augmenting_phase()
-			F += at
-
-		return F
+			visited = [False]*(self.V)
+			visited[s] = True
+			queue = []
+			queue.append(s)
 	
-	def min_cut_value(self) -> int:
-		cut_value = 0
-		for i in self.min_cut:
-			capacity_sum = 0
-			for j, t in self.out_edges(i):
-				if j in self.min_cut: continue  # not cross edge
+			# Standard BFS Loop
+			while queue:
+	
+				u = queue.pop(0)
+	
+				for ind, val in enumerate(self.matrix[u]):
+					if visited[ind] == False and val > 0:
 
-				uij = t[1]
-				capacity_sum += uij  # capacity
-
-			cut_value += capacity_sum
+						queue.append(ind)
+						visited[ind] = True
+						parent[ind] = u
+						if ind == t:
+							return True
+	
+			return False
+				
 		
-		return cut_value
+	def FordFulkerson(self):
 
-	def write_sol(self):
-		p = self.E / (self.V ** 2)
-		sol_file = "model-{}-{:.1f}.path".format(self.V, p)
-		sol = self.ford_fulkerson()
+		parent = [-1]*(self.V)
+		max_flow = 0
 
-		with open(sol_file, "w") as f:
-			f.write(f"Max flow = {sol}\n")
+		source = self.source
+		sink = self.sink
 
-			for i in range(self.V):
-				for j, uij, fij in self.out_edges[i]:
-					f.write(f"edge ({i},{j}): {fij}/{uij}\n")
+		while self.BFS(source, sink, parent) :
 
+			path_flow = float("Inf")
+			s = sink
+			while(s !=  source):
+				path_flow = min (path_flow, self.matrix[parent[s]][s])
+				s = parent[s]
 
-"""
------------ Main -----------
-"""
+			max_flow +=  path_flow
 
+			v = sink
+			while(v !=  source):
+				u = parent[v]
+				self.matrix[u][v] -= path_flow
+				self.matrix[v][u] += path_flow
+				v = parent[v]
+
+		return max_flow
+	
 def inst_test():
 	import time
-	n_max = 13
-	for n in range(5,n_max+1,2):
+	
+	n_max = 15
+	for n in range(1,n_max+1, 2):
 		for p in range(1,4):
+			
 			inst = f"instances/inst-{n}00-0.{p}.txt"
 			
-			g = FordFulkersonSolver(inst)
+			print("inst = " + inst + "-----------------------")
 			
-			start_time = time.time()	
-			max_flow = g.ford_fulkerson()
-			elapsed_time = time.time() - start_time
-			print(f"inst {n}-{p}: F = {max_flow} in : {elapsed_time:.4f}")
-			print("--------------------------------")
+			# graph parse -------------------------
+			g = FordFulkersonSolver(inst)
 
+			# solving -----------------------------
+			start_time = time.time()	
+			max_flow = g.FordFulkerson()
+			elapsed_time = time.time() - start_time
+			print(f"max flow = {max_flow} in : {elapsed_time:.4f}")
+			
 
 def main():
-	# TODO: command line parametre !!!!!
-
+	import time
+	
 	instance_file = "instances/inst-1500-0.3.txt"
 	g = FordFulkersonSolver(instance_file)
 
-	
-	import time
-	start_time = time.time()	
-	max_flow = g.ford_fulkerson()
+	start_time = time.time()
+	max_flow = g.FordFulkerson()
 	elapsed_time = time.time() - start_time
-	print(f"max flow = {max_flow} in : {elapsed_time:.4f}")
-	g.write_sol()
+	print(f"max flow = {max_flow} in : {elapsed_time}")
 
+	# inst_test()
 	
 if __name__ == '__main__':
 	main()
