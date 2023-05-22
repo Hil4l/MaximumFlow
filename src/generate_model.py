@@ -1,104 +1,85 @@
-""" 
+"""
 --------------------------------------------------------------------------------------------
-Author: Hilal Rachik 520550
+Author: Hilal Rachik / Nadim Rachik
 
-Parametre (command line): instance file "inst-n-p.txt"
-Generates: CPLEX LP linear program of this instance saved in a file "model-n-p.lp"
-Exemple: python3 generate_model.py "inst-300-0.3.txt"  --> generates "model-300-0.3.lp"
+Parametre: instance file "inst-n-p.txt"
+Generates: linear program model "model-n-p.lp" and its resolution by glpk "model-n-p.sol"
 -------------------------------------------------------------------------------------------- 
 """ 
-import time
+
+import subprocess
+import sys
+
 
 class LPModelGenerator:
 
 	def __init__(self, instance_file:str):
 		self.instance_file = instance_file
-		self.matrix = []  # adj matrix graph
 		self.capacity_cnt = []
 		self.conserv_cnt = []
 
-	# Graph from instance file
-	def parseInstanceFile(self) -> None:
-		with open(self.instance_file, 'r') as in_file:
-			V = int(in_file.readline().strip().split()[1])
-			source = int(in_file.readline().strip().split()[1])
-			sink = int(in_file.readline().strip().split()[1])
-			E = int(in_file.readline().strip().split()[1])
+		with open(instance_file) as f:
+			V = int(f.readline().strip().split()[1])
+			source = int(f.readline().strip().split()[1])
+			sink = int(f.readline().strip().split()[1])
+			E = int(f.readline().strip().split()[1])
 
-			for _ in range(V):
-				self.matrix.append([None] * V)
-		
-			# edges
+			self.out_edges = {u: {} for u in range(V)}
+			self.inc_edges = {u: {} for u in range(V)}  # trade off space complexity for time complexity, better for conservation constraints
+			
 			while True:
-				line = in_file.readline().strip().split()  # ['a', 'b', 'c']
+				line = f.readline().strip().split()
 				if not line: break
 				i, j, w = int(line[0]), int(line[1]), int(line[2])
 
-				if i == j: continue  # ignore self loop (because cancel itself in constraints)
+				if i == j: continue  # ignore self loop (cancel itself in constraints)
 
-				if self.matrix[i][j] is not None: # dup edge -> sum capacities
-					self.matrix[i][j] += w
-				else:  # new edge
-					self.matrix[i][j] = w  # capacity = w
-		
-		self.E = E
-		self.V = V
+				# save last capacity
+				self.out_edges[i][j] = w
+				self.inc_edges[j][i] = w
+
 		self.source = source
 		self.sink = sink
-		
-
-	def inc_edges(self, i):
-		# yield inc edges of node i: j, (fij,cij)
-	
-		ls = [row[i] for row in self.matrix]  # i column
-		for j, t in enumerate(ls):
-			if t is not None:  # (i,j) ∈ A
-				yield j, t
-	
-	def out_edges(self, i):
-		# yield out edges of node i: j, (fij,cij)
-		ls = self.matrix[i]
-		for j, t in enumerate(ls):
-			if t is not None:  # (i,j) ∈ A
-				yield j, t
+		self.V = V
+		self.E = E
 		
 	# ------------------------------------------------------------------------------------------
 
 	# Model name
-	def modelName(self) -> str:
+	def model_name(self) -> str:
 		p = self.E / (self.V ** 2)
-		model_name = "model-{}-{:.1f}.lp".format(self.V, p)
-		return model_name
+		name = "model-{}-{:.1f}.lp".format(self.V, p)
+		return name
 
-	def genCapacityConstr(self) -> None:
+	def gen_capacity_constr(self) -> None:
 		"""
 		Capacity constraints: edge flow <= edge capacity
 		x_i_j <= capacity
 		"""
 
-		for i in range(self.V):
-			for j, w in self.out_edges(i):
+		for i, edges in self.out_edges.items():
+			for j, w in edges.items():
 				constr = "x_{}_{} <= {}".format(i, j, w)  
 				self.capacity_cnt.append(constr)
 
-	def genConservConstr(self) -> None:
+	def gen_conserv_constr(self) -> None:
 		"""
 		Conservation constraints: sum(out flows) - sum(inc flows) = v if S, -v if T, 0 else
 		<=> sum(x_j_i) - sum(x_i_k) = 0 {v if S, -v if T, 0 else}
 		"""
-
 		for i in range(self.V):
 			constr = ""
-			for j, w in self.out_edges(i):  
+
+			for j in self.out_edges[i].keys():
 				constr += "x_{}_{} + ".format(i,j)
 
 			# reformat string
 			constr = constr[:-2]
 
-			for j, w in self.inc_edges(i):
+			for j in self.inc_edges[i].keys():
 				constr += "- x_{}_{} ".format(j,i)
 
-			# reformat string
+			# constraint equality
 			if i == self.source:
 				constr += "- v_0 = 0"
 			elif i == self.sink:
@@ -109,8 +90,8 @@ class LPModelGenerator:
 			# save node i constraints
 			self.conserv_cnt.append(constr)
 
-	def genModelFile(self) -> None:
-		with open(self.modelName(), "w") as f:
+	def gen_model(self, model_file):
+		with open(model_file, "w") as f:
 			f.write("Maximize\n")
 			f.write("\t obj: v_0\n")
 			f.write("Subject To\n")
@@ -120,47 +101,32 @@ class LPModelGenerator:
 				f.write("\t" + c + "\n")
 			f.write("End")
 
-	def createModel(self) -> None:
-		self.parseInstanceFile()
+	def gen_sol(self, model_file, sol_file):
+		command = ["glpsol", "--lp", model_file, "-o", sol_file]
+		subprocess.run(command)
 
-		self.genCapacityConstr()
-		self.genConservConstr()
+	def compute(self):
+		p = self.E / (self.V ** 2)
+		model_file = f"model-{self.V}-{p:.1f}.lp"
+		sol_file = f"model-{self.V}-{p:.1f}.sol"
 
-		self.genModelFile()
+		self.gen_capacity_constr()
+		self.gen_conserv_constr()
+		self.gen_model(model_file)
+		self.gen_sol(model_file, sol_file)
 
 """
------------ Main -----------
+----------- Main ----------------------------------
 """
-
-def inst_test():
-	import subprocess
-	import os
-
-	n_max = 15
-	for n in range(1,n_max+1,2):
-		for p in range(1,4):
-			inst = f"instances/inst-{n}00-0.{p}.txt"
-			
-			g = LPModelGenerator(inst)
-			g.createModel()
-			
-			model_file = f"model-{n}00-0.{p}.lp"
-			# sol_file = f"sol-{n}00-0.{p}.sol"
-			# command = ["glpsol", "--lp", model_file, "-o", sol_file]
-			# subprocess.run(command)
-
-			os.remove(model_file)
-			# os.remove(sol_file)
-			print("--------------------------------")
-
 
 def main():
-	# TODO: command line parametre !!!!!
+	if len(sys.argv) != 2:
+		print("Usage: python3 generate_model.py instance.txt")
+		sys.exit(1)
 
-	instance_file = "instances/inst-100-0.1.txt"
+	instance_file = sys.argv[1]
 	g = LPModelGenerator(instance_file)
-	g.createModel()
-
+	g.compute()
 
 if __name__ == '__main__':
 	main()
